@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) void {
     const exe_mod = b.addModule("exe", .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
+        .optimize = optimize,
         .imports = &.{
             .{ .name = name, .module = mod },
             .{ .name = "flags", .module = flags_mod },
