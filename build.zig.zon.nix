@@ -7,44 +7,48 @@
   runCommandLocal,
   zig_0_14,
   name ? "zig-packages",
-}: let
-  unpackZigArtifact = {
-    name,
-    artifact,
-  }:
-    runCommandLocal name
+}:
+let
+  unpackZigArtifact =
     {
-      nativeBuildInputs = [zig_0_14];
-    }
-    ''
-      hash="$(zig fetch --global-cache-dir "$TMPDIR" ${artifact})"
-      mv "$TMPDIR/p/$hash" "$out"
-      chmod 755 "$out"
-    '';
+      name,
+      artifact,
+    }:
+    runCommandLocal name
+      {
+        nativeBuildInputs = [ zig_0_14 ];
+      }
+      ''
+        hash="$(zig fetch --global-cache-dir "$TMPDIR" ${artifact})"
+        mv "$TMPDIR/p/$hash" "$out"
+        chmod 755 "$out"
+      '';
 
-  fetchZig = {
-    name,
-    url,
-    hash,
-  }: let
-    artifact = fetchurl {inherit url hash;};
-  in
-    unpackZigArtifact {inherit name artifact;};
+  fetchZig =
+    {
+      name,
+      url,
+      hash,
+    }:
+    let
+      artifact = fetchurl { inherit url hash; };
+    in
+    unpackZigArtifact { inherit name artifact; };
 
-  fetchGitZig = {
-    name,
-    url,
-    hash,
-  }: let
-    parts = lib.splitString "#" url;
-    url_base = builtins.elemAt parts 0;
-    url_without_query = builtins.elemAt (lib.splitString "?" url_base) 0;
-    rev_base = builtins.elemAt parts 1;
-    rev =
-      if builtins.match "^[a-fA-F0-9]{40}$" rev_base != null
-      then rev_base
-      else "refs/heads/${rev_base}";
-  in
+  fetchGitZig =
+    {
+      name,
+      url,
+      hash,
+    }:
+    let
+      parts = lib.splitString "#" url;
+      url_base = builtins.elemAt parts 0;
+      url_without_query = builtins.elemAt (lib.splitString "?" url_base) 0;
+      rev_base = builtins.elemAt parts 1;
+      rev =
+        if builtins.match "^[a-fA-F0-9]{40}$" rev_base != null then rev_base else "refs/heads/${rev_base}";
+    in
     fetchgit {
       inherit name rev hash;
       url = url_without_query;
@@ -52,50 +56,52 @@
       fetchSubmodules = false;
     };
 
-  fetchZigArtifact = {
-    name,
-    url,
-    hash,
-  }: let
-    parts = lib.splitString "://" url;
-    proto = builtins.elemAt parts 0;
-    path = builtins.elemAt parts 1;
-    fetcher = {
-      "git+http" = fetchGitZig {
-        inherit name hash;
-        url = "http://${path}";
+  fetchZigArtifact =
+    {
+      name,
+      url,
+      hash,
+    }:
+    let
+      parts = lib.splitString "://" url;
+      proto = builtins.elemAt parts 0;
+      path = builtins.elemAt parts 1;
+      fetcher = {
+        "git+http" = fetchGitZig {
+          inherit name hash;
+          url = "http://${path}";
+        };
+        "git+https" = fetchGitZig {
+          inherit name hash;
+          url = "https://${path}";
+        };
+        http = fetchZig {
+          inherit name hash;
+          url = "http://${path}";
+        };
+        https = fetchZig {
+          inherit name hash;
+          url = "https://${path}";
+        };
       };
-      "git+https" = fetchGitZig {
-        inherit name hash;
-        url = "https://${path}";
-      };
-      http = fetchZig {
-        inherit name hash;
-        url = "http://${path}";
-      };
-      https = fetchZig {
-        inherit name hash;
-        url = "https://${path}";
-      };
-    };
-  in
+    in
     fetcher.${proto};
 in
-  linkFarm name [
-    {
-      name = "flags-0.11.0-a_9h3gR2AACtwEzEcKhIsYPEgNPbBeGYKhbYL4lsmJ1N";
-      path = fetchZigArtifact {
-        name = "flags";
-        url = "git+https://github.com/JacobCrabill/zig-flags?ref=dev/jacob/optional-commands#8f65f0d5bf0d92b950ddf16afb34533491831c7d";
-        hash = "sha256-uvWKFoyB6ZSlGe03iu5MLaui41scIhN+YYx4YjuAhNI=";
-      };
-    }
-    {
-      name = "zigimg-0.1.0-8_eo2vBrFQAvZmO9NzDP85_qC5JFksuMdyI_KMMEr4bq";
-      path = fetchZigArtifact {
-        name = "zigimg";
-        url = "git+https://github.com/zigimg/zigimg#d7717b3617d58160635623fe86d4bf86065498e0";
-        hash = "sha256-GxTb8jbk0XpaqTiGeMn+F0Lzgkyuo2NZhzvLgaBSQzA=";
-      };
-    }
-  ]
+linkFarm name [
+  {
+    name = "flags-0.11.0-a_9h3gR2AACtwEzEcKhIsYPEgNPbBeGYKhbYL4lsmJ1N";
+    path = fetchZigArtifact {
+      name = "flags";
+      url = "git+https://github.com/JacobCrabill/zig-flags?ref=dev/jacob/optional-commands#8f65f0d5bf0d92b950ddf16afb34533491831c7d";
+      hash = "sha256-uvWKFoyB6ZSlGe03iu5MLaui41scIhN+YYx4YjuAhNI=";
+    };
+  }
+  {
+    name = "zigimg-0.1.0-8_eo2vBrFQBhsrLpexdcDQY-zrlzkyFZfKuYX-Nry6KN";
+    path = fetchZigArtifact {
+      name = "zigimg";
+      url = "git+https://github.com/zigimg/zigimg.git#f5783e87627cbd9e0b45fad112e9f73503914f36";
+      hash = "sha256-sMih/7zcsxTnLXTvWUyxJ2gyp1UQhkDeVnrp7LuXo/U=";
+    };
+  }
+]

@@ -8,20 +8,23 @@ pub fn build(b: *std.Build) void {
 
     const coverage = b.option(bool, "coverage", "Generate a coverage report with kcov") orelse false;
 
+    const zigimg_mod = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zigimg");
+
     const mod = b.addModule(name, .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .imports = &.{
+            .{ .name = "zigimg", .module = zigimg_mod },
+        },
     });
 
     const flags_mod = b.dependency("flags", .{
         .target = target,
         .optimize = optimize,
     }).module("flags");
-
-    const zigimg_mod = b.dependency("zigimg", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("zigimg");
 
     const exe_mod = b.addModule("exe", .{
         .root_source_file = b.path("src/main.zig"),
@@ -30,7 +33,6 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = name, .module = mod },
             .{ .name = "flags", .module = flags_mod },
-            .{ .name = "zigimg", .module = zigimg_mod },
         },
     });
 

@@ -12,155 +12,158 @@ pub fn main() !void {
         _ = debug_allocator.deinit();
     };
 
-    var arena = std.heap.ArenaAllocator.init(gpa);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+    var arena_state = std.heap.ArenaAllocator.init(gpa);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
+    const args = try std.process.argsAlloc(arena);
 
-    const options = flags.parse(args, "chrz", Flags, .{});
+    var options = flags.parse(args, "chrz", Options, .{});
+    try options.setFormats();
 
-    switch (options.format) {
-        .icn => try createIcnFromPng(allocator, options),
-        .chr => try createChrFromPng(allocator, options),
+    if (options.input_format == .png and options.output_format == .icn) {
+        try chrz.convertPngToIcn(arena, options.positional.input, options.positional.output);
+    } else if (options.input_format == .png and options.output_format == .chr) {
+        try chrz.convertPngToChr(arena, options.positional.input, options.positional.output);
+    } else if (options.input_format == .chr and options.output_format == .png) {
+        try chrz.convertChrToPng(
+            arena,
+            options.positional.input,
+            options.positional.output,
+            .{
+                .width = options.width,
+                .height = options.height,
+                .nmt = options.nmt,
+                .nmt_addressing_mode = options.nmt_addressing_mode,
+                .palette = options.palette,
+                .palette_file = options.palette_file,
+            },
+        );
+    } else if (options.input_format == .nmt and options.output_format == .chr) {
+        const source_chr = options.source orelse return error.SourceChrRequired;
+        try chrz.createChrFromNmt(
+            arena,
+            options.positional.input,
+            options.positional.output,
+            source_chr,
+            options.nmt_addressing_mode orelse .direct,
+        );
+    } else {
+        return error.UnsupportedConversion;
     }
 }
 
-pub fn createIcnFromPng(arena: Allocator, options: Flags) !void {
-    const filename = options.positional.file;
+pub const Options = struct {
+    pub const description =
+        \\Convert between indexed PNGs and CHR or ICN format based on file
+        \\extension.
+        \\
+        \\Convert from CHR to a 4-bit indexed PNG:
+        \\chr input.chr output.png
+        \\
+        \\Convert with custom palette:
+        \\chr --palette e0f8d0,88c070,346856,081820 input.chr output.png
+        \\
+        \\Convert from 1-bit indexed PNG to ICN:
+        \\chr input.png ouput.icn
+        \\
+        \\Convert from NMT to CHR (requires source CHR):
+        \\chr --source sprites.chr map.nmt rendered.chr
+        \\
+        \\Convert from CHR+NMT to PNG with custom 64-color palette:
+        \\chr --nmt map.nmt --palette-file colors.txt input.chr output.png
+        \\
+        \\Force input and output formats:
+        \\chr -i chr -o png input.bin output
+    ;
 
-    const read_buffer = arena.alloc(u8, 1024 * 1024) catch @panic("OOM");
-    var image = try zigimg.Image.fromFilePath(arena, filename, read_buffer);
-    defer image.deinit(arena);
+    pub const switches = .{
+        .input_format = 'i',
+        .output_format = 'o',
+        .nmt = 'n',
+        .nmt_addressing_mode = 'm',
+        .source = 's',
+        .palette = 'p',
+    };
 
-    // Ensure the image is in the correct 2-color palette format.
-    if (image.pixels != .indexed1) {
-        return error.InvalidPixelFormat;
+    pub const descriptions = .{
+        .input_format = "format to convert from (chr, icn, nmt, or png)",
+        .output_format = "format to convert to (chr, icn, or png)",
+        .width = "width of input file",
+        .height = "height of input file",
+        .nmt = "use NMT tile map to create image",
+        .nmt_addressing_mode = "how to read CHR data from NMT entry's address field",
+        .source = "source CHR file (required for NMT to CHR conversion)",
+        .palette = "4-color palette as comma-separated hex (e.g., e0f8d0,88c070,346856,081820)",
+        .palette_file = "file containing palette colors (one hex color per line, 4 or 64 colors)",
+    };
+
+    input_format: ?Format = null,
+    output_format: ?Format = null,
+    width: ?u32 = null,
+    height: ?u32 = null,
+    nmt: ?[]const u8 = null,
+    nmt_addressing_mode: ?AddressingMode = .direct,
+    source: ?[]const u8 = null,
+    palette: ?[]const u8 = null,
+    palette_file: ?[]const u8 = null,
+
+    positional: struct {
+        pub const descriptions = .{
+            .input = "Name of file to convert from.",
+            .output = "Name of file to convert to.",
+        };
+
+        input: []const u8,
+        output: []const u8,
+    },
+
+    pub const Format = enum {
+        chr,
+        icn,
+        nmt,
+        png,
+    };
+
+    pub fn setFormats(self: *@This()) !void {
+        if (self.input_format == null)
+            self.input_format =
+                if (std.mem.endsWith(u8, self.positional.input, "png"))
+                    .png
+                else if (std.mem.endsWith(u8, self.positional.input, "icn"))
+                    .icn
+                else if (std.mem.endsWith(u8, self.positional.input, "nmt"))
+                    .nmt
+                else if (std.mem.endsWith(u8, self.positional.input, "chr"))
+                    .chr
+                else
+                    return error.UnknownFormat;
+
+        if (self.output_format == null)
+            self.output_format =
+                if (std.mem.endsWith(u8, self.positional.output, "png"))
+                    .png
+                else if (std.mem.endsWith(u8, self.positional.output, "icn"))
+                    .icn
+                else if (std.mem.endsWith(u8, self.positional.output, "nmt"))
+                    .nmt
+                else if (std.mem.endsWith(u8, self.positional.output, "chr"))
+                    .chr
+                else
+                    return error.UnknownFormat;
     }
+};
 
-    // Assert that the image dimensions are tile-aligned (8x8).
-    std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
-
-    const output_filename = if (options.output) |out| out else blk: {
-        const ext = ".png";
-        const base_len = if (std.mem.endsWith(u8, filename, ext)) filename.len - ext.len else filename.len;
-        break :blk std.fmt.allocPrint(arena, "{s}.icn", .{filename[0..base_len]}) catch @panic("OOM");
+test "Options.setFormats sets formats based on string suffix" {
+    const options_with_suffixes: Options = .{
+        .positional = .{
+            .input = "test.png",
+            .output = "test.icn",
+        },
     };
 
-    var output_file = std.fs.cwd().createFile(output_filename, .{}) catch |err| {
-        fatal("unable to open '{s}' for writing: {s}", .{ output_filename, @errorName(err) });
-    };
-    defer output_file.close();
-
-    const total_pixels = image.width * image.height;
-    const buffer = try arena.alloc(u8, total_pixels / 8);
-    @memset(buffer, 0);
-
-    std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
-
-    for (0..image.height) |y| {
-        for (0..image.width) |x| {
-            const pixel = image.pixels.indexed1.indices[y * image.width + x];
-            if (pixel == 1) {
-                const tile_x = @divFloor(x, 8);
-                const tile_y = @divFloor(y, 8);
-                const tiles_per_row = image.width / 8;
-                const tile_index = tile_y * tiles_per_row + tile_x;
-                const row_in_tile = y % 8;
-                const index = tile_index * 8 + row_in_tile;
-                buffer[index] |= @as(u8, 1) << @intCast(7 - (x % 8));
-            }
-        }
-    }
-
-    output_file.writeAll(buffer[0..]) catch |err| {
-        fatal("unable to write to '{s}': {s}", .{ output_filename, @errorName(err) });
-    };
-}
-
-/// Converts a zigimg.Image with indexed2 (4-color) pixel storage into
-/// a CHR byte slice.
-///
-/// The function assumes the image dimensions are a multiple of 8.
-pub fn createChrFromPng(arena: Allocator, options: Flags) !void {
-    const filename = options.positional.file;
-
-    const read_buffer = arena.alloc(u8, 1024 * 1024) catch @panic("OOM");
-    var image = try zigimg.Image.fromFilePath(arena, filename, read_buffer);
-    defer image.deinit(arena);
-    // Ensure the image is in the correct 4-color palette format.
-    if (image.pixels != .indexed2) {
-        return error.InvalidPixelFormat;
-    }
-
-    // Assert that the image dimensions are tile-aligned (8x8).
-    std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
-
-    const output_filename = if (options.output) |out| out else blk: {
-        const ext = ".png";
-        const base_len = if (std.mem.endsWith(u8, filename, ext)) filename.len - ext.len else filename.len;
-        break :blk std.fmt.allocPrint(arena, "{s}.chr", .{filename[0..base_len]}) catch @panic("OOM");
-    };
-
-    var output_file = std.fs.cwd().createFile(output_filename, .{}) catch |err| {
-        fatal("unable to open '{s}' for writing: {s}", .{ output_filename, @errorName(err) });
-    };
-    defer output_file.close();
-
-    const total_pixels = image.width * image.height;
-    // Each pixel is 2 bits. 8 pixels per byte, 2 planes. 2/8 = 1/4 byte per pixel.
-    const buffer_size = total_pixels / 4;
-    const buffer = try arena.alloc(u8, buffer_size);
-    @memset(buffer, 0);
-
-    const tiles_per_row = image.width / 8;
-    const tile_byte_size = 16; // 16 bytes per CHR tile
-
-    // Iterate over every pixel of the source image.
-    for (0..image.height) |y| {
-        for (0..image.width) |x| {
-            // Get the 2-bit palette index (0, 1, 2, or 3) for the current pixel.
-            const palette_index = image.pixels.indexed2.indices[y * image.width + x];
-
-            // Deconstruct the palette index into two separate bits.
-            // bit1 is the least significant bit (LSB).
-            const bit1 = palette_index & 1;
-            // bit2 is the most significant bit (MSB).
-            const bit2 = (palette_index >> 1) & 1;
-
-            // Calculate which tile this pixel belongs to.
-            const tile_x = @divFloor(x, 8);
-            const tile_y = @divFloor(y, 8);
-            const tile_index = tile_y * tiles_per_row + tile_x;
-
-            // Calculate the position of the pixel within its 8x8 tile.
-            const row_in_tile = y % 8;
-            const col_in_tile = x % 8;
-
-            // The bit position within the byte (7 is MSB, 0 is LSB).
-            const bit_position = 7 - col_in_tile;
-
-            // Calculate the base index for the current tile in the output buffer.
-            const tile_base_index = tile_index * tile_byte_size;
-
-            // If bit1 is set, write a '1' to the corresponding position in the first bitplane.
-            if (bit1 != 0) {
-                const index_ch1 = tile_base_index + row_in_tile;
-                buffer[index_ch1] |= (@as(u8, 1) << @intCast(bit_position));
-            }
-
-            // If bit2 is set, write a '1' to the corresponding position in the second bitplane.
-            // The second bitplane starts 8 bytes after the first one.
-            if (bit2 != 0) {
-                const index_ch2 = tile_base_index + 8 + row_in_tile;
-                buffer[index_ch2] |= (@as(u8, 1) << @intCast(bit_position));
-            }
-        }
-    }
-
-    output_file.writeAll(buffer[0..]) catch |err| {
-        fatal("unable to write to '{s}': {s}", .{ output_filename, @errorName(err) });
-    };
+    try expectEqual(.png, options_with_suffixes.input_format);
+    try expectEqual(.icn, options_with_suffixes.output_format);
 }
 
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
@@ -169,46 +172,12 @@ fn fatal(comptime format: []const u8, args: anytype) noreturn {
     std.process.exit(1);
 }
 
-pub const Flags = struct {
-    pub const description =
-        \\Convert an indexed PNG to CHR or ICN format.
-    ;
-
-    pub const switches = .{
-        .format = 'f',
-        .output = 'o',
-    };
-
-    pub const descriptions = .{
-        .format = "format to convert to (chr or icn), default is chr",
-        .output = "Name of output file, default is input name with appropriate extension",
-    };
-
-    format: enum {
-        pub const descriptions = .{
-            .chr = "Output CHR format",
-            .icn = "Output ICN format",
-        };
-
-        chr,
-        icn,
-    } = .chr,
-    output: ?[]const u8 = null,
-
-    positional: struct {
-        pub const descriptions = .{
-            .file = "Input file. Must be a PNG file with indexed colors.",
-        };
-
-        file: []const u8,
-    },
-};
-
 const chrz = @import("chrz");
+const AddressingMode = chrz.AddressingMode;
 
 const flags = @import("flags");
-const zigimg = @import("zigimg");
 
 const std = @import("std");
+const expectEqual = std.testing.expectEqual;
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");

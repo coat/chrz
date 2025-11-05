@@ -68,6 +68,46 @@ pub fn toPixelBuffer(
     };
 }
 
+pub fn convertPngToIcn(arena: Allocator, png_filename: []const u8, icn_filename: []const u8) !void {
+    var read_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
+    var image = try zigimg.Image.fromFilePath(arena, png_filename, &read_buffer);
+    defer image.deinit(arena);
+
+    // Ensure the image is in the correct 2-color palette format.
+    if (image.pixels != .indexed1) {
+        return error.InvalidPixelFormat;
+    }
+
+    // Assert that the image dimensions are tile-aligned (8x8).
+    std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
+
+    var output_file = try std.fs.cwd().createFile(icn_filename, .{});
+    defer output_file.close();
+
+    const total_pixels = image.width * image.height;
+    const buffer = try arena.alloc(u8, total_pixels / 8);
+    @memset(buffer, 0);
+
+    std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
+
+    for (0..image.height) |y| {
+        for (0..image.width) |x| {
+            const pixel = image.pixels.indexed1.indices[y * image.width + x];
+            if (pixel == 1) {
+                const tile_x = @divFloor(x, 8);
+                const tile_y = @divFloor(y, 8);
+                const tiles_per_row = image.width / 8;
+                const tile_index = tile_y * tiles_per_row + tile_x;
+                const row_in_tile = y % 8;
+                const index = tile_index * 8 + row_in_tile;
+                buffer[index] |= @as(u8, 1) << @intCast(7 - (x % 8));
+            }
+        }
+    }
+
+    try output_file.writeAll(buffer[0..]);
+}
+
 test "generateIcnPixelBuffer single 8x8 tile" {
     const allocator = std.testing.allocator;
 
@@ -203,6 +243,8 @@ test "generateIcnPixelBuffer handles incomplete trailing data" {
 }
 
 const PixelBuffer = @import("root.zig").PixelBuffer;
+
+const zigimg = @import("zigimg");
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;

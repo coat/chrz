@@ -19,7 +19,7 @@
             packages = with pkgs;
               [
                 elfkickers
-                zig_0_15
+                zig
               ]
               ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [kcov]);
           };
