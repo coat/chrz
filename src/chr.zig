@@ -15,17 +15,17 @@
 /// A `PixelBuffer` containing the generated pixel data, or an error if
 /// memory allocation fails.
 pub fn toPixelBuffer(
+    T: type,
     allocator: std.mem.Allocator,
     chr_data: []const u8,
     width: u32,
     height: u32,
-    palette: [4]u32,
-) !PixelBuffer {
+    palette: [4]T,
+) !PixelBuffer(T) {
     const pixel_count = width * height;
-    const data = try allocator.alloc(u32, pixel_count);
+    const data = try allocator.alloc(T, pixel_count);
 
     // Initialize the buffer with the background color (palette index 0).
-    // std.mem.set(u32, data, palette[0]);
     @memset(data, palette[0]);
 
     const tiles_wide = width / 8;
@@ -37,9 +37,7 @@ pub fn toPixelBuffer(
         const tile_data_start = tile_index * tile_byte_size;
         const tile_data = chr_data[tile_data_start .. tile_data_start + tile_byte_size];
 
-        // The first 8 bytes are the first bitplane (ch1)
         const ch1_data = tile_data[0..8];
-        // The next 8 bytes are the second bitplane (ch2)
         const ch2_data = tile_data[8..16];
 
         // Determine the top-left (x, y) coordinate for the current tile.
@@ -149,7 +147,7 @@ pub fn nmtToChr(
     return output;
 }
 
-/// Generates a 32-bit pixel buffer from NMT (nametable) data.
+/// Generates a pixel buffer from NMT (nametable) data.
 ///
 /// NMT data consists of cells that reference sprites in a CHR spritesheet.
 /// Each cell is 3 bytes: 2-byte address + 1-byte Sprite metadata.
@@ -163,18 +161,19 @@ pub fn nmtToChr(
 /// - palette: An array of 64 u32 ARGB colors (16 palettes × 4 colors).
 ///
 /// Returns:
-/// A `PixelBuffer` containing the generated pixel data.
+/// A `PixelBuffer` containing the generated pixel data in the specified type
 pub fn nmtToPixelBuffer(
+    T: type,
     allocator: std.mem.Allocator,
     nmt_data: []const u8,
     chr_data: []const u8,
     width: u32,
     height: u32,
-    palette: [64]u32,
+    palette: [64]T,
     offset: u8,
-) !PixelBuffer {
+) !PixelBuffer(T) {
     const pixel_count = width * height;
-    const data = try allocator.alloc(u32, pixel_count);
+    const data = try allocator.alloc(T, pixel_count);
     @memset(data, palette[0]);
 
     const tiles_wide = width / 8;
@@ -475,6 +474,7 @@ pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename:
             };
 
             break :create_chr try nmtToPixelBuffer(
+                u32,
                 arena,
                 nmt_data,
                 chr_data,
@@ -485,6 +485,7 @@ pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename:
             );
         } else {
             break :create_chr try toPixelBuffer(
+                u32,
                 arena,
                 chr_data,
                 width,

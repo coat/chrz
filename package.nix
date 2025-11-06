@@ -3,7 +3,6 @@
   elfkickers,
   lib,
   stdenvNoCC,
-  makeWrapper,
   zig,
 }: let
   zig_hook = zig.hook.overrideAttrs {
@@ -13,11 +12,11 @@ in
   stdenvNoCC.mkDerivation (
     finalAttrs: {
       name = "chrz";
-      version = "0.4.0";
+      version = "0.5.0";
       src = lib.cleanSource ./.;
+
       nativeBuildInputs = [
         zig_hook
-        makeWrapper
       ] ++ lib.optionals stdenvNoCC.isLinux [elfkickers];
 
       deps = callPackage ./build.zig.zon.nix {name = "${finalAttrs.name}-${finalAttrs.version}";};
@@ -26,6 +25,7 @@ in
         "--system"
         "${finalAttrs.deps}"
       ];
+
       meta = {
         mainProgram = "chrz";
         license = lib.licenses.mit;

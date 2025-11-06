@@ -20,7 +20,7 @@ test "generateChrPixelBuffer single 8x8 tile" {
     const width: u32 = 8;
     const height: u32 = 8;
 
-    var pixel_buffer = try chrToPixelBuffer(allocator, &chr_data, width, height, palette);
+    var pixel_buffer = try chrToPixelBuffer(u32, allocator, &chr_data, width, height, palette);
     defer pixel_buffer.deinit(allocator);
 
     // Row 2: ch1=0xf8 (11111000), ch2=0x3e (00111110)
@@ -94,7 +94,7 @@ test "nmtToPixelBuffer 2x2 tiles" {
     const width: u32 = 16;
     const height: u32 = 16;
 
-    var pixel_buffer = try nmtToPixelBuffer(allocator, &nmt_data, &chr_data, width, height, palette, 16);
+    var pixel_buffer = try nmtToPixelBuffer(u32, allocator, &nmt_data, &chr_data, width, height, palette, 16);
     defer pixel_buffer.deinit(allocator);
 
     // Cell 0 (top-left): tile 0, palette 0
@@ -211,4 +211,3 @@ const convertPngToIcn = chrz.convertPngToIcn;
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-

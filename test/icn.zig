@@ -18,7 +18,7 @@ test "generateIcnPixelBuffer single 8x8 tile" {
     const width: u32 = 8;
     const height: u32 = 8;
 
-    var pixel_buffer = try toPixelBuffer(allocator, &icn_data, width, height, color);
+    var pixel_buffer = try toPixelBuffer(u32, allocator, &icn_data, width, height, color);
     defer pixel_buffer.deinit(allocator);
 
     try std.testing.expectEqual(width, pixel_buffer.width);
@@ -60,7 +60,7 @@ test "generateIcnPixelBuffer multiple horizontal tiles (16x8)" {
     const width: u32 = 16;
     const height: u32 = 8;
 
-    var pixel_buffer = try toPixelBuffer(allocator, icn_data, width, height, color);
+    var pixel_buffer = try toPixelBuffer(u32, allocator, icn_data, width, height, color);
     defer pixel_buffer.deinit(allocator);
 
     // Check pixel in first tile area (x < 8)
@@ -94,7 +94,7 @@ test "generateIcnPixelBuffer multiple row and column tiles (16x16)" {
     const width: u32 = 16;
     const height: u32 = 16;
 
-    var pixel_buffer = try toPixelBuffer(allocator, icn_data, width, height, color);
+    var pixel_buffer = try toPixelBuffer(u32, allocator, icn_data, width, height, color);
     defer pixel_buffer.deinit(allocator);
 
     // Explicitly check the corners of the 16x16 grid
@@ -120,7 +120,7 @@ test "generateIcnPixelBuffer handles incomplete trailing data" {
     const width: u32 = 16;
     const height: u32 = 8;
 
-    var pixel_buffer = try toPixelBuffer(allocator, &icn_data, width, height, color);
+    var pixel_buffer = try toPixelBuffer(u32, allocator, &icn_data, width, height, color);
     defer pixel_buffer.deinit(allocator);
 
     // The first 8x8 area should be solid color

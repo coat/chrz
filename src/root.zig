@@ -9,17 +9,18 @@ pub const icnToPixelBuffer = icn.toPixelBuffer;
 pub const convertPngToIcn = icn.convertPngToIcn;
 
 /// A buffer to hold pixel data for a texture.
-/// Pixel format is ARGB8888 (32 bits per pixel).
-pub const PixelBuffer = struct {
-    data: []u32,
-    width: u32,
-    height: u32,
+pub fn PixelBuffer(T: type) type {
+    return struct {
+        data: []T,
+        width: u32,
+        height: u32,
 
-    pub fn deinit(self: *@This(), allocator: @import("std").mem.Allocator) void {
-        allocator.free(self.data);
-        self.* = undefined;
-    }
-};
+        pub fn deinit(self: *@This(), allocator: @import("std").mem.Allocator) void {
+            allocator.free(self.data);
+            self.* = undefined;
+        }
+    };
+}
 
 pub const Nmt = []NmtEntry;
 
