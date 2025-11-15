@@ -106,23 +106,18 @@ pub fn nmtToChr(
     chr_data: []const u8,
     offset: u8,
 ) ![]u8 {
-    const cell_size = 3;
     const tile_byte_size = 16;
-    const num_cells = nmt_data.len / cell_size;
+    const nmt = try nmtFromBytes(allocator, nmt_data);
+    defer allocator.free(nmt);
 
-    const output = try allocator.alloc(u8, num_cells * tile_byte_size);
+    const output = try allocator.alloc(u8, nmt.len * tile_byte_size);
     @memset(output, 0);
 
-    var cell_index: u32 = 0;
-    while (cell_index < num_cells) : (cell_index += 1) {
-        const cell_start = cell_index * cell_size;
-        const cell = nmt_data[cell_start..][0..cell_size];
-
-        var address: usize = @intCast(std.mem.readInt(u16, cell[0..2], .little));
+    for (nmt, 0..) |entry, cell_index| {
+        var address: usize = entry.address;
         if (offset != 16) {
             address = address * 16;
         }
-        const sprite = @as(Sprite, @bitCast(cell[2]));
 
         const tile_data_start = address;
         if (tile_data_start + 16 > chr_data.len) continue;
@@ -135,12 +130,12 @@ pub fn nmtToChr(
         const dst_ch2 = output[dst_start + 8 ..][0..8];
 
         for (0..8) |row| {
-            const src_row = if (sprite.flip_y) 7 - row else row;
+            const src_row = if (entry.sprite.flip_y) 7 - row else row;
             const ch1_byte = src_ch1[src_row];
             const ch2_byte = src_ch2[src_row];
 
-            dst_ch1[row] = if (sprite.flip_x) @bitReverse(ch1_byte) else ch1_byte;
-            dst_ch2[row] = if (sprite.flip_x) @bitReverse(ch2_byte) else ch2_byte;
+            dst_ch1[row] = if (entry.sprite.flip_x) @bitReverse(ch1_byte) else ch1_byte;
+            dst_ch2[row] = if (entry.sprite.flip_x) @bitReverse(ch2_byte) else ch2_byte;
         }
     }
 
@@ -177,19 +172,14 @@ pub fn nmtToPixelBuffer(
     @memset(data, palette[0]);
 
     const tiles_wide = width / 8;
-    const cell_size = 3;
+    const nmt = try nmtFromBytes(allocator, nmt_data);
+    defer allocator.free(nmt);
 
-    var cell_index: u32 = 0;
-    while (cell_index * cell_size + cell_size <= nmt_data.len) : (cell_index += 1) {
-        const cell_start = cell_index * cell_size;
-        const cell = nmt_data[cell_start..][0..cell_size];
-
-        var address: usize = @intCast(std.mem.readInt(u16, cell[0..2], .little));
+    for (nmt, 0..) |entry, cell_index| {
+        var address: usize = entry.address;
         if (offset != 16) {
             address = address * 16;
-            // std.debug.print("after ddress: {d}\n", .{address});
         }
-        const sprite = @as(Sprite, @bitCast(cell[2]));
 
         const tile_data_start = address;
         if (tile_data_start + 16 > chr_data.len) continue;
@@ -204,18 +194,18 @@ pub fn nmtToPixelBuffer(
 
         var y_in_tile: u32 = 0;
         while (y_in_tile < 8) : (y_in_tile += 1) {
-            const y = if (sprite.flip_y) 7 - y_in_tile else y_in_tile;
+            const y = if (entry.sprite.flip_y) 7 - y_in_tile else y_in_tile;
             const row_byte_ch1 = ch1_data[y];
             const row_byte_ch2 = ch2_data[y];
 
             var x_in_tile: u32 = 0;
             while (x_in_tile < 8) : (x_in_tile += 1) {
-                const x = if (sprite.flip_x) 7 - x_in_tile else x_in_tile;
+                const x = if (entry.sprite.flip_x) 7 - x_in_tile else x_in_tile;
                 const bit1 = @intFromBool((row_byte_ch1 << @intCast(x)) & 0x80 != 0);
                 const bit2 = @intFromBool((row_byte_ch2 << @intCast(x)) & 0x80 != 0);
                 const color_index: u2 = (@as(u2, bit2) << 1) | bit1;
 
-                const palette_offset: usize = @as(usize, sprite.palette) * 4;
+                const palette_offset: usize = @as(usize, entry.sprite.palette) * 4;
                 const color = palette[palette_offset + color_index];
 
                 const px = base_x + x_in_tile;
@@ -528,6 +518,7 @@ const AddressingMode = chrz.AddressingMode;
 const PixelBuffer = chrz.PixelBuffer;
 const Sprite = chrz.Sprite;
 const Nmt = chrz.Nmt;
+const nmtFromBytes = chrz.nmtFromBytes;
 
 const zigimg = @import("zigimg");
 const Rgba32 = zigimg.color.Rgba32;

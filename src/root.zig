@@ -8,6 +8,12 @@ pub const createChrFromNmt = chr.createChrFromNmt;
 pub const icnToPixelBuffer = icn.toPixelBuffer;
 pub const convertPngToIcn = icn.convertPngToIcn;
 
+pub const Nmt = nmt.Nmt;
+pub const NmtEntry = nmt.NmtEntry;
+pub const Sprite = nmt.Sprite;
+pub const AddressingMode = nmt.AddressingMode;
+pub const nmtFromBytes = nmt.fromBytes;
+
 /// A buffer to hold pixel data for a texture.
 pub fn PixelBuffer(T: type) type {
     return struct {
@@ -22,30 +28,6 @@ pub fn PixelBuffer(T: type) type {
     };
 }
 
-pub const Nmt = []NmtEntry;
-
-pub const NmtEntry = packed struct(u24) {
-    address: u16,
-    sprite: Sprite,
-
-    pub fn toBytes(self: NmtEntry) [3]u8 {
-        return @bitCast(self);
-    }
-};
-
-pub const Sprite = packed struct(u8) {
-    palette: u4 = 0,
-    flip_x: bool = false,
-    flip_y: bool = false,
-    layer: bool = false,
-    @"2bpp": bool = true,
-};
-
-pub const AddressingMode = enum {
-    indexed,
-    direct,
-};
-
 test {
     _ = chr;
     _ = icn;
@@ -53,6 +35,7 @@ test {
 
 const chr = @import("chr.zig");
 const icn = @import("icn.zig");
+const nmt = @import("nmt.zig");
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
