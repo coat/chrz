@@ -229,9 +229,9 @@ pub fn nmtToPixelBuffer(
 /// a CHR byte slice.
 ///
 /// The function assumes the image dimensions are a multiple of 8.
-pub fn convertPngToChr(arena: Allocator, input_filename: []const u8, output_filename: []const u8) !void {
+pub fn convertPngToChr(arena: Allocator, io: std.Io, input_filename: []const u8, output_filename: []const u8) !void {
     const read_buffer = arena.alloc(u8, 1024 * 1024) catch @panic("OOM");
-    var image = try zigimg.Image.fromFilePath(arena, input_filename, read_buffer);
+    var image = try zigimg.Image.fromFilePath(arena, io, input_filename, read_buffer);
     defer image.deinit(arena);
 
     if (image.pixels != .indexed2) {
@@ -240,8 +240,8 @@ pub fn convertPngToChr(arena: Allocator, input_filename: []const u8, output_file
 
     std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
 
-    var output_file = try std.fs.cwd().createFile(output_filename, .{});
-    defer output_file.close();
+    var output_file = try std.Io.Dir.cwd().createFile(io, output_filename, .{});
+    defer output_file.close(io);
 
     const total_pixels = image.width * image.height;
     // Each pixel is 2 bits. 8 pixels per byte, 2 planes. 2/8 = 1/4 byte per pixel.
@@ -292,7 +292,7 @@ pub fn convertPngToChr(arena: Allocator, input_filename: []const u8, output_file
         }
     }
 
-    try output_file.writeAll(buffer[0..]);
+    try output_file.writeStreamingAll(io, buffer[0..]);
 }
 
 fn parseHexColor(hex_str: []const u8) !Rgba32 {
@@ -329,11 +329,8 @@ fn parsePalette(allocator: Allocator, palette_str: []const u8) ![]Rgba32 {
 }
 
 /// caller owns slice
-fn parsePaletteFile(allocator: Allocator, filepath: []const u8) ![]Rgba32 {
-    var file = try std.fs.cwd().openFile(filepath, .{});
-    defer file.close();
-
-    const file_content = try file.readToEndAlloc(allocator, std.math.maxInt(u32));
+fn parsePaletteFile(allocator: Allocator, io: std.Io, filepath: []const u8) ![]Rgba32 {
+    const file_content = try std.Io.Dir.cwd().readFileAlloc(io, filepath, allocator, .unlimited);
 
     var colors = std.ArrayList(Rgba32).empty;
     defer colors.deinit(allocator);
@@ -383,20 +380,14 @@ const default_nmt_palette: [64]u32 = .{
 
 pub fn createChrFromNmt(
     arena: Allocator,
+    io: std.Io,
     nmt_input: []const u8,
     chr_filename: []const u8,
     source_chr: []const u8,
     addressing_mode: AddressingMode,
 ) !void {
-    var nmt_file = try std.fs.cwd().openFile(nmt_input, .{});
-    defer nmt_file.close();
-
-    const nmt_data = try nmt_file.readToEndAlloc(arena, std.math.maxInt(u32));
-
-    var chr_file = try std.fs.cwd().openFile(source_chr, .{});
-    defer chr_file.close();
-
-    const chr_data = try chr_file.readToEndAlloc(arena, std.math.maxInt(u32));
+    const nmt_data = try std.Io.Dir.cwd().readFileAlloc(io, nmt_input, arena, .unlimited);
+    const chr_data = try std.Io.Dir.cwd().readFileAlloc(io, source_chr, arena, .unlimited);
 
     const output_chr = try chrz.chrNmtToChr(
         arena,
@@ -405,10 +396,10 @@ pub fn createChrFromNmt(
         if (addressing_mode == .indexed) 1 else 16,
     );
 
-    var output_file = try std.fs.cwd().createFile(chr_filename, .{});
-    defer output_file.close();
+    var output_file = try std.Io.Dir.cwd().createFile(io, chr_filename, .{});
+    defer output_file.close(io);
 
-    try output_file.writeAll(output_chr);
+    try output_file.writeStreamingAll(io, output_chr);
 }
 
 pub const ChrOptions = struct {
@@ -421,11 +412,8 @@ pub const ChrOptions = struct {
     palette_file: ?[]const u8 = null,
 };
 
-pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename: []const u8, options: ChrOptions) !void {
-    var chr_file = try std.fs.cwd().openFile(chr_input, .{});
-    defer chr_file.close();
-
-    const chr_data = try chr_file.readToEndAlloc(arena, std.math.maxInt(u32));
+pub fn convertChrToPng(arena: Allocator, io: std.Io, chr_input: []const u8, output_filename: []const u8, options: ChrOptions) !void {
+    const chr_data = try std.Io.Dir.cwd().readFileAlloc(io, chr_input, arena, .unlimited);
 
     var width: u32 = 0;
     var height: u32 = 0;
@@ -445,14 +433,11 @@ pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename:
 
     const chr = create_chr: {
         if (options.nmt) |nmt_path| {
-            var nmt_file = try std.fs.cwd().openFile(nmt_path, .{});
-            defer nmt_file.close();
-
-            const nmt_data = try nmt_file.readToEndAlloc(arena, std.math.maxInt(u32));
+            const nmt_data = try std.Io.Dir.cwd().readFileAlloc(io, nmt_path, arena, .unlimited);
 
             const nmt_palette = nmt_pal: {
                 if (options.palette_file) |palette_file| {
-                    const rgba_palette = try parsePaletteFile(arena, palette_file);
+                    const rgba_palette = try parsePaletteFile(arena, io, palette_file);
                     var pal: [64]u32 = undefined;
                     for (rgba_palette, 0..) |pixel, i| {
                         pal[i] = pixel.to.u32Rgba();
@@ -495,7 +480,7 @@ pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename:
         image = try zigimg.Image.create(arena, width, height, .indexed2);
 
         const palette = if (options.palette_file) |palette_file|
-            try parsePaletteFile(arena, palette_file)
+            try parsePaletteFile(arena, io, palette_file)
         else if (options.palette) |palette_str|
             try parsePalette(arena, palette_str)
         else
@@ -510,7 +495,7 @@ pub fn convertChrToPng(arena: Allocator, chr_input: []const u8, output_filename:
     defer image.deinit(arena);
 
     var write_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
-    try image.writeToFilePath(arena, output_filename, write_buffer[0..], .{ .png = .{} });
+    try image.writeToFilePath(arena, io, output_filename, write_buffer[0..], .{ .png = .{} });
 }
 
 const chrz = @import("root.zig");

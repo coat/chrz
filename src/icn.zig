@@ -69,9 +69,9 @@ pub fn toPixelBuffer(
     };
 }
 
-pub fn convertPngToIcn(arena: Allocator, png_filename: []const u8, icn_filename: []const u8) !void {
+pub fn convertPngToIcn(arena: Allocator, io: std.Io, png_filename: []const u8, icn_filename: []const u8) !void {
     var read_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
-    var image = try zigimg.Image.fromFilePath(arena, png_filename, &read_buffer);
+    var image = try zigimg.Image.fromFilePath(arena, io, png_filename, &read_buffer);
     defer image.deinit(arena);
 
     // Ensure the image is in the correct 2-color palette format.
@@ -82,8 +82,8 @@ pub fn convertPngToIcn(arena: Allocator, png_filename: []const u8, icn_filename:
     // Assert that the image dimensions are tile-aligned (8x8).
     std.debug.assert(image.width % 8 == 0 and image.height % 8 == 0);
 
-    var output_file = try std.fs.cwd().createFile(icn_filename, .{});
-    defer output_file.close();
+    var output_file = try std.Io.Dir.cwd().createFile(io, icn_filename, .{});
+    defer output_file.close(io);
 
     const total_pixels = image.width * image.height;
     const buffer = try arena.alloc(u8, total_pixels / 8);
@@ -106,7 +106,7 @@ pub fn convertPngToIcn(arena: Allocator, png_filename: []const u8, icn_filename:
         }
     }
 
-    try output_file.writeAll(buffer[0..]);
+    try output_file.writeStreamingAll(io, buffer[0..]);
 }
 
 const PixelBuffer = @import("root.zig").PixelBuffer;

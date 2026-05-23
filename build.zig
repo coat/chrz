@@ -21,24 +21,19 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const flags_mod = b.dependency("flags", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("flags");
-
     const exe_mod = b.addModule("exe", .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = name, .module = mod },
-            .{ .name = "flags", .module = flags_mod },
         },
     });
 
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = exe_mod,
+        .use_llvm = true,
     });
 
     const install_step = b.addInstallArtifact(exe, .{});
@@ -66,7 +61,7 @@ pub fn build(b: *std.Build) void {
 
     const mod_tests = b.addTest(.{
         .root_module = mod,
-        .use_llvm = coverage,
+        .use_llvm = true,
     });
 
     const run_mod_tests = b.addRunArtifact(mod_tests);
@@ -81,7 +76,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "main", .module = exe_mod },
             },
         }),
-        .use_llvm = coverage,
+        .use_llvm = true,
     });
     const run_tests = b.addRunArtifact(tests);
 

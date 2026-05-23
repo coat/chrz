@@ -169,37 +169,39 @@ test "createIcnFromPng produces correct ICN output" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    const io = std.testing.io;
 
     const png_path = "test/icn.png";
     const ref_icn_path = "test/icn.icn";
     const out_icn_path = "test/out.icn";
 
-    try convertPngToIcn(allocator, png_path, out_icn_path);
+    try convertPngToIcn(allocator, io, png_path, out_icn_path);
 
-    const ref_icn = try std.fs.cwd().readFileAlloc(allocator, ref_icn_path, 1024 * 1024);
-    const out_icn = try std.fs.cwd().readFileAlloc(allocator, out_icn_path, 1024 * 1024);
+    const ref_icn = try std.Io.Dir.cwd().readFileAlloc(io, ref_icn_path, allocator, .unlimited);
+    const out_icn = try std.Io.Dir.cwd().readFileAlloc(io, out_icn_path, allocator, .unlimited);
 
     try std.testing.expectEqualSlices(u8, ref_icn, out_icn);
 
-    defer std.fs.cwd().deleteFile(out_icn_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(io, out_icn_path) catch {};
 }
 
 test "createChrFromPng produces correct CHR output" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    const io = std.testing.io;
 
     const png_path = "test/chr.png";
     const ref_chr_path = "test/chr.chr";
     const out_chr_path = "test/out.chr";
 
-    try convertPngToChr(allocator, png_path, out_chr_path);
+    try convertPngToChr(allocator, io, png_path, out_chr_path);
 
-    const ref_chr = try std.fs.cwd().readFileAlloc(allocator, ref_chr_path, 1024 * 1024);
-    const out_chr = try std.fs.cwd().readFileAlloc(allocator, out_chr_path, 1024 * 1024);
+    const ref_chr = try std.Io.Dir.cwd().readFileAlloc(io, ref_chr_path, allocator, .unlimited);
+    const out_chr = try std.Io.Dir.cwd().readFileAlloc(io, out_chr_path, allocator, .unlimited);
 
     try std.testing.expectEqualSlices(u8, ref_chr, out_chr);
-    defer std.fs.cwd().deleteFile(out_chr_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(io, out_chr_path) catch {};
 }
 
 const chrz = @import("chrz");
