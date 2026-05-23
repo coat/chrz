@@ -1,9 +1,7 @@
 {
   description = "chrz";
 
-  inputs = {
-    nixpkgs.url = "https://channels.nixos.org/nixos-unstable-small/nixexprs.tar.xz";
-  };
+  inputs.nixpkgs.url = "nixpkgs/nixos-unstable";
 
   outputs = {nixpkgs, ...}: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
@@ -18,10 +16,9 @@
           devShells.${system}.default = pkgs.mkShell {
             packages = with pkgs;
               [
-                elfkickers
                 zig
               ]
-              ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [kcov]);
+              ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [kcov elfkickers]);
           };
 
           formatter.${system} = pkgs.alejandra;

@@ -1,16 +1,12 @@
 .{
     .name = .chrz,
-    .version = "0.6.0",
+    .version = "0.7.0",
     .fingerprint = 0xe3ca9e3f475b10fd, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
-        .flags = .{
-            .url = "git+https://github.com/JacobCrabill/zig-flags?ref=dev/jacob/optional-commands#8f65f0d5bf0d92b950ddf16afb34533491831c7d",
-            .hash = "flags-0.11.0-a_9h3gR2AACtwEzEcKhIsYPEgNPbBeGYKhbYL4lsmJ1N",
-        },
         .zigimg = .{
-            .url = "git+https://github.com/zigimg/zigimg.git#f5783e87627cbd9e0b45fad112e9f73503914f36",
-            .hash = "zigimg-0.1.0-8_eo2vBrFQBhsrLpexdcDQY-zrlzkyFZfKuYX-Nry6KN",
+            .url = "git+https://github.com/zigimg/zigimg.git?ref=zigimg_zig_0.16.0#d695acd97c02e57bb151e8f659d1280f5cd6ca70",
+            .hash = "zigimg-0.1.0-8_eo2oyaFwBZwJpmqPkCfVXWBrHcqbYwmrp1I6bTD3lI",
         },
     },
     .paths = .{
